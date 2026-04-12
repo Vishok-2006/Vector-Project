@@ -10,6 +10,7 @@ pdfplumber==0.11.0
 # AI / embeddings
 sentence-transformers==2.7.0
 google-generativeai==0.5.4
+openai>=1.30.0
 
 # HTTP
 httpx>=0.28.1 
