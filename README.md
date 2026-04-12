@@ -24,7 +24,13 @@ ENDEE_PORT="8080"
 ### Endee Integration (Docker)
 Ensure you have docker installed. You can run Endee locally with Docker Compose:
 ```bash
-docker run -p 8080:8080 -v /tmp/endee_data:/data endeedb/endee:latest
+docker run \
+  --ulimit nofile=100000:100000 \
+  -p 8080:8080 \
+  -v ./endee-data:/data \
+  --name endee-server \
+  --restart unless-stopped \
+  endeeio/endee-server:latest
 ```
 *(If you have an `endee/docker-compose.yml` locally, you can `docker compose up -d` in that folder instead)*
 
@@ -59,25 +65,3 @@ Accepts a JSON body with `query` and conversational `history`.
 Returns the `answer` directly from Gemini, along with the `sources` metadata denoting filenames and pages of context chunks retrieved for grounded results.
 
 ---
-
-## 3. Sample Prompts
-
-1.  **Extract Specifics**: "Find all mentions of performance metrics across the uploaded logs."
-2.  **Compare Documents**: "Compare the introductory thesis in Document A against the conclusion detailed in Document B."
-3.  **Out-of-Scope Fallback Validation**: "What is the molecular weight of Water?" -> (Assistant will cleanly reject this as "Not found in documents" due to strict boundary prompting).
-4.  **Follow-up Context**: "Summarize that last point again but format it as a markdown table."
-
----
-
-## 4. Deployment Steps
-
-**Backend (Production)**
-1. Dockerize the FastAPI app using `tiangolo/uvicorn-gunicorn-fastapi:python3.10`.
-2. Configure persistent volumes for the Endee database to prevent data deletion.
-3. For deployment platforms like Google Cloud Run or AWS App Runner, inject `GEMINI_API_KEY` into secrets management natively.
-
-**Frontend (Vercel)**
-Deploy via Vercel for native App Router capabilities:
-1. `npm i -g vercel`
-2. Run `vercel` in the `/frontend` directory.
-3. Configure your production rewrites inside `next.config.mjs` to target your deployed FastAPI URL.
