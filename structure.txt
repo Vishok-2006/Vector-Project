@@ -1,0 +1,64 @@
+.
+├── backend
+│   ├── embeddings
+│   │   └── generate.py
+│   ├── endee_client.py
+│   ├── main.py
+│   ├── requirements.txt
+│   ├── routes
+│   │   ├── __init__.py
+│   │   ├── query.py
+│   │   └── upload.py
+│   └── services
+│       └── parsers.py
+├── endee-data
+├── frontend
+│   ├── app
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── components
+│   │   ├── Chat.tsx
+│   │   ├── Message.tsx
+│   │   ├── Sidebar.tsx
+│   │   └── Upload.tsx
+│   ├── next.config.mjs
+│   ├── next-env.d.ts
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── postcss.config.mjs
+│   ├── tailwind.config.ts
+│   └── tsconfig.json
+├── openspec
+│   ├── changes
+│   │   ├── archive
+│   │   ├── build-agentic-multi-pdf-rag-assistant-gemini-nextjs
+│   │   │   ├── design.md
+│   │   │   ├── proposal.md
+│   │   │   ├── specs
+│   │   │   │   ├── agentic-rag-querying
+│   │   │   │   │   └── spec.md
+│   │   │   │   ├── pdf-ingestion-indexing
+│   │   │   │   │   └── spec.md
+│   │   │   │   └── premium-research-assistant-ui
+│   │   │   │       └── spec.md
+│   │   │   └── tasks.md
+│   │   └── build-agentic-multi-pdf-research-assistant
+│   │       ├── design.md
+│   │       ├── proposal.md
+│   │       ├── specs
+│   │       │   ├── multi-document-rag-querying
+│   │       │   │   └── spec.md
+│   │       │   ├── pdf-ingestion-indexing
+│   │       │   │   └── spec.md
+│   │       │   └── research-assistant-ui
+│   │       │       └── spec.md
+│   │       └── tasks.md
+│   ├── config.yaml
+│   └── specs
+├── package-lock.json
+├── README.md
+├── start.sh
+└── structure.txt
+
+23 directories, 39 files

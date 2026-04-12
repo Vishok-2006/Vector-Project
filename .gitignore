@@ -1,0 +1,17 @@
+.agent/*
+.codex/*
+.gemini/*
+.github/*
+.opencode/*
+openspec/*
+.env*
+backend/venu/*
+backend/__pycache__/*
+frontend/node_modules/*
+
+node_modules/
+__pycache__/
+.env
+venv/
+.venv/
+endee-data/
