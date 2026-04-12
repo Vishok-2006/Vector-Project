@@ -3,30 +3,41 @@
 @tailwind utilities;
 
 :root {
-  --background: #09090b;
-  --foreground: #ededed;
+  --background: #050507;
+  --foreground: #fafafa;
+  --accent: #6366f1;
+  --card: #0c0c0e;
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  overflow-x: hidden;
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-indigo-500/30;
+  }
 }
 
-::-webkit-scrollbar {
-  width: 8px;
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
 }
 
-::-webkit-scrollbar-track {
-  background: transparent; 
-}
- 
-::-webkit-scrollbar-thumb {
-  background: #3f3f46; 
-  border-radius: 4px;
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #52525b; 
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #1f1f23;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #2d2d33;
+}
+
+/* Animations */
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-soft {
+  animation: pulse-soft 3s ease-in-out infinite;
 }

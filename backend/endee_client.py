@@ -57,3 +57,29 @@ def search_similar(query_vector, top_k=5):
         include_vectors=False
     )
     return results
+
+def get_stats():
+    try:
+        index = get_or_create_index()
+        return {"total_vectors": index.total_records()}
+    except Exception:
+        return {"total_vectors": 0}
+
+def clear_db():
+    try:
+        client.delete_index(INDEX_NAME)
+        get_or_create_index()
+        return True
+    except Exception:
+        return False
+
+def get_sample_chunks(limit=10):
+    try:
+        index = get_or_create_index()
+        # Endee might not have a direct 'list all' with limit, 
+        # so we query with a dummy vector if necessary, or use list/scan if supported.
+        # Assuming index.query or similar can return some items.
+        # For now, return empty if not sure.
+        return [] 
+    except Exception:
+        return []

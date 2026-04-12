@@ -14,6 +14,7 @@ logging.basicConfig(
 
 from routes.upload import router as upload_router
 from routes.query import router as query_router
+from routes.vector_store import router as vector_router
 
 app = FastAPI(
     title="Agentic RAG Multi-PDF Assistant",
@@ -30,7 +31,8 @@ app.add_middleware(
 )
 
 app.include_router(upload_router, prefix="/api", tags=["Upload"])
-app.include_router(query_router, prefix="/api", tags=["Query"])
+app.include_router(query_router, prefix="", tags=["Chat"])
+app.include_router(vector_router, prefix="", tags=["Vector Store"])
 
 @app.get("/health")
 def health_check():
