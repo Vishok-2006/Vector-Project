@@ -19,7 +19,7 @@ def test_batches_requests_and_preserves_order(nim_env, nim):
     nim_env(EMBEDDING_BATCH_SIZE="2")
     texts = [f"unique{i} token" for i in range(5)]
     vectors = generate.get_embeddings(texts)
-    assert len(vectors) == 5 and all(len(v) == 1024 for v in vectors)
+    assert len(vectors) == 5 and all(len(v) == 2048 for v in vectors)
     assert [len(r["input"]) for r in nim.embedding_requests] == [2, 2, 1]
     # order preserved: each vector equals the standalone embedding of the same text
     again = generate.get_embeddings([texts[3]])[0]
@@ -31,11 +31,11 @@ def test_passages_and_queries_use_distinct_input_types(nim_env, nim):
     generate.get_embeddings(["a doc"])
     generate.get_query_embedding("a question")
     assert [r["input_type"] for r in nim.embedding_requests] == ["passage", "query"]
-    assert all(r["model"] == "nvidia/nv-embedqa-e5-v5" for r in nim.embedding_requests)
+    assert all(r["model"] == "nvidia/nemotron-3-embed-1b" for r in nim.embedding_requests)
 
 
 def test_symmetric_models_do_not_receive_input_type(nim_env, nim):
-    nim_env(NVIDIA_EMBEDDING_ASYMMETRIC="false", EMBEDDING_MODEL="acme/gte-like", EMBEDDING_DIMENSION="1024")
+    nim_env(NVIDIA_EMBEDDING_ASYMMETRIC="false", EMBEDDING_MODEL="acme/gte-like", EMBEDDING_DIMENSION="2048")
     generate.get_embeddings(["x"])
     assert "input_type" not in nim.embedding_requests[0] and "truncate" not in nim.embedding_requests[0]
 
@@ -43,7 +43,7 @@ def test_symmetric_models_do_not_receive_input_type(nim_env, nim):
 def test_blank_text_is_embeddable_and_empty_list_is_free(nim_env, nim):
     nim_env()
     assert generate.get_embeddings([]) == [] and not nim.embedding_requests
-    assert len(generate.get_embeddings(["   "])[0]) == 1024
+    assert len(generate.get_embeddings(["   "])[0]) == 2048
 
 
 def test_wrong_dimension_and_api_errors_raise_embedding_error(nim_env, nim):
@@ -94,3 +94,11 @@ def test_local_provider_without_package_gives_actionable_error(configure, monkey
     with pytest.raises(generate.EmbeddingError, match="EMBEDDINGS=local"):
         generate.get_embeddings(["x"])
     generate._local_model.cache_clear()
+
+
+def test_retired_embedding_model_gives_actionable_error(nim_env, nim):
+    nim_env(EMBEDDING_MODEL="nvidia/nv-embedqa-e5-v5")  # retired by NVIDIA: HTTP 410
+    with pytest.raises(generate.EmbeddingError) as info:
+        generate.get_embeddings(["x"])
+    message = str(info.value)
+    assert "HTTP 410" in message and "has been retired" in message and "EMBEDDING_MODEL" in message

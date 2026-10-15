@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 import database
 from config import get_settings
-from embeddings.generate import EmbeddingError
+from embeddings.generate import EmbeddingError, embedding_info, get_query_embedding
 from qdrant_store import VectorStoreError
 from security import current_user
 from services import llm_service
@@ -135,6 +135,16 @@ async def test_llm(prompt: str = "Hello", user_id: str = Depends(current_user)):
         raise HTTPException(status_code=504, detail="LLM request timed out.") from exc
     except LLMGenerationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.get("/test-embeddings")
+async def test_embeddings(user_id: str = Depends(current_user)):
+    """Embed a probe string with the configured embedding model (diagnoses retired/wrong models)."""
+    try:
+        vector = await asyncio.to_thread(get_query_embedding, "connection test")
+    except EmbeddingError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {**embedding_info(), "returned_dimension": len(vector), "status": "ok"}
 
 
 @router.get("/chats")

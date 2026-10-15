@@ -57,10 +57,12 @@ def describe_http_error(status: int, detail: str, model: str) -> str:
             f"NVIDIA NIM denied access (HTTP 403). The key may not have access to model '{model}'."
             + detail_suffix
         )
-    if status == 404:
+    if status in (404, 410):
+        reason = "has been retired" if status == 410 else "could not be found"
         return (
-            f"NVIDIA NIM could not find model '{model}' or the endpoint (HTTP 404). "
-            "Check NVIDIA_MODEL / NVIDIA_BASE_URL against the NVIDIA API catalog." + detail_suffix
+            f"NVIDIA NIM model '{model}' {reason} (HTTP {status}). Pick a current model from the NVIDIA "
+            "API catalog and set NVIDIA_MODEL (chat) or EMBEDDING_MODEL (embeddings); also check "
+            "NVIDIA_BASE_URL." + detail_suffix
         )
     if status in (400, 422):
         return f"NVIDIA NIM rejected the request (HTTP {status})." + detail_suffix

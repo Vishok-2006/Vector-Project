@@ -35,11 +35,11 @@ def test_creates_cosine_collection_with_expected_dimension_and_indexes(env):
     store = VectorStore()
     store.ensure_ready()
     info = QdrantClient(url=server.url).get_collection(settings.qdrant_collection)
-    assert info.config.params.vectors.size == 1024
+    assert info.config.params.vectors.size == 2048
     assert info.config.params.vectors.distance == qm.Distance.COSINE
     schema = info.payload_schema
     assert {"user_id", "filename", "upload_id"} <= set(schema)
-    assert (info.config.metadata or {}).get("embedding_model") == "nvidia/nv-embedqa-e5-v5"
+    assert (info.config.metadata or {}).get("embedding_model") == "nvidia/nemotron-3-embed-1b"
 
 
 def test_restart_of_app_and_of_qdrant_keeps_all_data(env):
@@ -73,7 +73,7 @@ def test_dimension_mismatch_is_refused_and_existing_data_is_untouched(env, confi
         EMBEDDING_PROVIDER="local",
     )
     broken = VectorStore()
-    with pytest.raises(VectorStoreMisconfigured, match="1024-dimensional|stores 1024"):
+    with pytest.raises(VectorStoreMisconfigured, match="2048-dimensional|stores 2048"):
         broken.ensure_ready()
     status = broken.status()
     assert status["ok"] is False and status["state"] == "misconfigured"
@@ -84,15 +84,15 @@ def test_dimension_mismatch_is_refused_and_existing_data_is_untouched(env, confi
     # data survived, collection was not recreated
     raw = QdrantClient(url=server.url)
     assert raw.count(settings.qdrant_collection).count == 1
-    assert raw.get_collection(settings.qdrant_collection).config.params.vectors.size == 1024
+    assert raw.get_collection(settings.qdrant_collection).config.params.vectors.size == 2048
 
 
 def test_same_dimension_but_different_model_is_refused(env, configure):
     settings, server = env
-    VectorStore().ensure_ready()
+    index(VectorStore(), "alice", ["some indexed text"])  # has data -> must be protected
     configure(
         QDRANT_URL=server.url, QDRANT_COLLECTION=settings.qdrant_collection, NVIDIA_API_KEY="k",
-        EMBEDDING_MODEL="acme/other-1024", EMBEDDING_DIMENSION=1024,
+        EMBEDDING_MODEL="acme/other-2048", EMBEDDING_DIMENSION=2048,
     )
     with pytest.raises(VectorStoreMisconfigured, match="not comparable"):
         VectorStore().ensure_ready()
@@ -100,11 +100,14 @@ def test_same_dimension_but_different_model_is_refused(env, configure):
 
 def test_non_cosine_collection_is_refused(env):
     settings, server = env
-    QdrantClient(url=server.url).create_collection(
-        settings.qdrant_collection, vectors_config=qm.VectorParams(size=1024, distance=qm.Distance.DOT)
+    raw = QdrantClient(url=server.url)
+    raw.create_collection(
+        settings.qdrant_collection, vectors_config=qm.VectorParams(size=2048, distance=qm.Distance.DOT)
     )
+    raw.upsert(settings.qdrant_collection, points=[qm.PointStruct(id=1, vector=embed_text("x"), payload={"user_id": "a"})])
     with pytest.raises(VectorStoreMisconfigured, match="Cosine"):
         VectorStore().ensure_ready()
+    assert raw.count(settings.qdrant_collection).count == 1  # untouched
 
 
 def test_users_are_isolated_for_search_count_sample_and_delete(env):
@@ -183,3 +186,26 @@ def test_collection_deleted_externally_is_detected_by_status(env):
     # status() probes live; a genuinely missing collection is recreated EMPTY (never over data)
     assert store.status()["ok"] is True
     assert store.count("alice") == 0
+
+
+def test_empty_incompatible_collection_is_rebuilt_but_never_one_with_data(env):
+    """First start with a retired 1024-d model leaves an EMPTY collection; switching models must just work."""
+    settings, server = env
+    raw = QdrantClient(url=server.url)
+    raw.create_collection(
+        settings.qdrant_collection, vectors_config=qm.VectorParams(size=1024, distance=qm.Distance.COSINE)
+    )
+    store = VectorStore()
+    store.ensure_ready()  # empty -> recreated at 2048
+    assert raw.get_collection(settings.qdrant_collection).config.params.vectors.size == 2048
+    index(store, "alice", ["keep me safe"])
+
+    # now with data, a different size must be refused again
+    raw.delete_collection(settings.qdrant_collection)
+    raw.create_collection(
+        settings.qdrant_collection, vectors_config=qm.VectorParams(size=1024, distance=qm.Distance.COSINE)
+    )
+    raw.upsert(settings.qdrant_collection, points=[qm.PointStruct(id=7, vector=[0.1] * 1024, payload={"user_id": "a"})])
+    with pytest.raises(VectorStoreMisconfigured):
+        VectorStore().ensure_ready()
+    assert raw.count(settings.qdrant_collection).count == 1

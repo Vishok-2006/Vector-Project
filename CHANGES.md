@@ -4,7 +4,7 @@
 | Area | Before | After |
 |---|---|---|
 | LLM | Google Gemini | **NVIDIA NIM** via env vars `NVIDIA_API_KEY`, `NVIDIA_MODEL`, `NVIDIA_BASE_URL`; retries with backoff on 429/5xx/timeouts; actionable messages for 401/403/404/429/5xx; key never logged or returned |
-| Embeddings | local `all-MiniLM-L6-v2` (384-d, torch) | Audited separately. Default **NIM `nvidia/nv-embedqa-e5-v5`** (1024-d, passage/query input types). Local MiniLM kept as an optional build variant. Every vector's length is validated |
+| Embeddings | local `all-MiniLM-L6-v2` (384-d, torch) | Audited separately. Default **NIM `nvidia/nemotron-3-embed-1b`** (2048-d, passage/query input types; the originally chosen `nv-embedqa-e5-v5` was retired by NVIDIA on 2026-08-25). Local MiniLM kept as an optional build variant. Every vector's length is validated |
 | Vector DB | Endee | **Qdrant** (cosine, payload `user_id`/`filename`/`page`/`text`, tenant index on `user_id`). Existing collections are never deleted or recreated; dimension/distance/model mismatches are refused with instructions |
 | Packaging | none (README described an unrelated Node/Mongo stack) | One multi-stage Dockerfile, one container: nginx + Next.js + FastAPI + Qdrant under supervisord/tini, Render blueprint |
 
@@ -38,3 +38,8 @@ The bundled UI is updated; external scripts calling the old paths must add the `
 ## Data migration
 Old SQLite databases are upgraded in place; legacy rows are kept but invisible to every user (they predate
 isolation). Vectors in Endee are **not** migrated (different embedding model and store): re-upload documents.
+
+## Embedding model retirement (HTTP 410)
+`nvidia/nv-embedqa-e5-v5` was retired by NVIDIA, so default is now `nvidia/nemotron-3-embed-1b` (2048-d, 4096-token window).
+New: retired/missing models produce an explicit error naming `EMBEDDING_MODEL`; `GET /api/test-embeddings` probes the
+configured model; an incompatible Qdrant collection is rebuilt automatically only when it contains zero vectors.

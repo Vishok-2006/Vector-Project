@@ -179,12 +179,7 @@ class VectorStore:
                 "Creating Qdrant collection %r (size=%d, distance=Cosine).", self.collection, self.dimension
             )
             try:
-                client.create_collection(
-                    collection_name=self.collection,
-                    vectors_config=qm.VectorParams(size=self.dimension, distance=qm.Distance.COSINE),
-                    on_disk_payload=True,
-                    metadata=self._expected_metadata(),
-                )
+                self._create_collection()
             except Exception:
                 # Lost a creation race, or an old server without `metadata` support.
                 if not client.collection_exists(self.collection):
@@ -192,36 +187,67 @@ class VectorStore:
                 self._verify_existing()
         self._ensure_payload_indexes()
 
-    def _verify_existing(self) -> None:
-        info = self.client.get_collection(self.collection)
+    def _create_collection(self) -> None:
+        self.client.create_collection(
+            collection_name=self.collection,
+            vectors_config=qm.VectorParams(size=self.dimension, distance=qm.Distance.COSINE),
+            on_disk_payload=True,
+            metadata=self._expected_metadata(),
+        )
+
+    def _find_incompatibility(self, info: Any) -> str | None:
+        """Describe why the existing collection cannot be used with the current config, if so."""
         params = info.config.params
         vectors = params.vectors
         if not isinstance(vectors, qm.VectorParams):
-            raise VectorStoreMisconfigured(
+            return (
                 f"Qdrant collection {self.collection!r} uses named/multiple vectors, which this app "
                 "does not support. Point QDRANT_COLLECTION at a different name."
             )
         if vectors.size != self.dimension:
-            raise VectorStoreMisconfigured(
+            return (
                 f"Qdrant collection {self.collection!r} stores {vectors.size}-dimensional vectors but "
                 f"the configured embedding model ({self.settings.embedding_model}) produces "
                 f"{self.dimension}. Existing data was left untouched. Either restore the previous "
                 f"EMBEDDING_* settings, or set QDRANT_COLLECTION to a new name and re-upload your documents."
             )
         if vectors.distance != qm.Distance.COSINE:
-            raise VectorStoreMisconfigured(
+            return (
                 f"Qdrant collection {self.collection!r} uses {vectors.distance} distance; this app "
                 "requires Cosine. Existing data was left untouched; use a different QDRANT_COLLECTION."
             )
         stored = getattr(info.config, "metadata", None) or {}
         stored_model = stored.get("embedding_model")
         if stored_model and stored_model != self.settings.embedding_model:
-            raise VectorStoreMisconfigured(
+            return (
                 f"Qdrant collection {self.collection!r} was built with embedding model {stored_model!r} but "
                 f"{self.settings.embedding_model!r} is configured. Vectors from different models are not "
                 "comparable even when their sizes match. Existing data was left untouched; restore the "
                 "old EMBEDDING_MODEL or set QDRANT_COLLECTION to a new name and re-upload."
             )
+        return None
+
+    def _verify_existing(self) -> None:
+        info = self.client.get_collection(self.collection)
+        problem = self._find_incompatibility(info)
+        if problem is None:
+            return
+
+        # An incompatible collection that holds NO vectors has nothing to lose (typical after the
+        # first start with a model that was later retired/changed): rebuild it for the new config.
+        # A collection with any data is never touched.
+        points = int(self.client.count(collection_name=self.collection, exact=True).count)
+        if points != 0:
+            raise VectorStoreMisconfigured(problem)
+        logger.warning(
+            "Qdrant collection %r is incompatible with the current embedding config but is EMPTY "
+            "(0 vectors); recreating it (size=%d, distance=Cosine). Reason: %s",
+            self.collection,
+            self.dimension,
+            problem,
+        )
+        self.client.delete_collection(self.collection)
+        self._create_collection()
 
     def _ensure_payload_indexes(self) -> None:
         # Creating an index that already exists is a no-op, so this is safe on every start.

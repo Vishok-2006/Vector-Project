@@ -21,10 +21,10 @@ export default function Home() {
   const [ready, setReady] = useState(false);
   const [health, setHealth] = useState<Health | null>(null);
   const [settings, setSettings] = useState({
-    chunkSize: 250,
+    chunkSize: 500,
     ragEnabled: true,
   });
-  const maxChunkWords = health?.embeddings?.max_chunk_words ?? 250;
+  const maxChunkWords = health?.embeddings?.max_chunk_words ?? 500;
 
   // Establish the signed session cookie BEFORE any other request fires, so every
   // call in this tab belongs to the same user.

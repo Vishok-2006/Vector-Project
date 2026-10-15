@@ -4,13 +4,14 @@ import config
 import security
 
 
-def test_defaults_use_nvidia_nim_and_1024_dim(configure):
+def test_defaults_use_nvidia_nim_and_2048_dim(configure):
     s = configure()
     assert s.nvidia_base_url == "https://integrate.api.nvidia.com/v1"
     assert s.nvidia_model == "meta/llama-3.3-70b-instruct"
     assert s.embedding_provider == "nvidia"
-    assert s.embedding_model == "nvidia/nv-embedqa-e5-v5"
-    assert s.embedding_dimension == 1024
+    assert s.embedding_model == "nvidia/nemotron-3-embed-1b"
+    assert s.embedding_dimension == 2048
+    assert s.embedding_max_chunk_words == 1500
     assert s.nvidia_api_key == ""  # no secret has a default
 
 

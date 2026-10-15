@@ -32,7 +32,7 @@ All settings are environment variables; see [`.env.example`](.env.example) for t
 | `NVIDIA_BASE_URL` | no | `https://integrate.api.nvidia.com/v1` | OpenAI-compatible NIM endpoint (also works for a self-hosted NIM). |
 | `NVIDIA_MODEL` | no | `meta/llama-3.3-70b-instruct` | Chat model that writes answers. |
 | `EMBEDDING_PROVIDER` | no | `nvidia` | `nvidia` (NIM `/embeddings`) or `local` (needs the `EMBEDDINGS=local` build). |
-| `EMBEDDING_MODEL` | no | `nvidia/nv-embedqa-e5-v5` | Embedding model (1024 dims). Unknown models also need `EMBEDDING_DIMENSION`. |
+| `EMBEDDING_MODEL` | no | `nvidia/nemotron-3-embed-1b` | Embedding model (2048 dims). Unknown models also need `EMBEDDING_DIMENSION`. |
 | `QDRANT_COLLECTION` | no | `vectora_chunks` | Use a **new** name if you change the embedding model. |
 | `PORT` | no | `10000` | Public port (Render sets it). |
 | `MAX_UPLOAD_MB` | no | `25` | Per-request upload limit. |
@@ -41,9 +41,16 @@ All settings are environment variables; see [`.env.example`](.env.example) for t
 
 ### Why embeddings are configured separately
 A NIM *chat* model cannot produce embeddings. Vectora therefore uses a dedicated embedding model
-(`nvidia/nv-embedqa-e5-v5`, 1024-d, asymmetric: documents are embedded as `passage`, questions as
-`query`). Chunk size is capped to the model's context window (250 words by default) so a whole chunk
+(`nvidia/nemotron-3-embed-1b`, 2048-d, asymmetric: documents are embedded as `passage`, questions as
+`query`). Chunk size is capped to the model's context window (1500 words by default) so a whole chunk
 is embedded, and the Settings slider is limited accordingly.
+
+**NVIDIA retires hosted models** (the original default, `nv-embedqa-e5-v5`, now returns HTTP 410).
+If uploads fail with HTTP 404/410, call `GET /api/test-embeddings`, list what your key can use with
+`curl -H "Authorization: Bearer $NVIDIA_API_KEY" https://integrate.api.nvidia.com/v1/models`, then set
+`EMBEDDING_MODEL` (and `EMBEDDING_DIMENSION` if the model is not one Vectora knows). A collection that
+is incompatible with the new model is rebuilt automatically **only if it is empty**; if it already holds
+documents, use a new `QDRANT_COLLECTION` name and re-upload.
 
 ## Run with Docker (one container)
 
@@ -156,7 +163,7 @@ of the NIM API (`backend/tests/fake_nim.py`), so it needs no key and no network.
 ## API (all under `/api`)
 
 `POST /upload` · `GET /documents` · `DELETE /documents/{id}` · `POST /chat` · `GET /chats` ·
-`GET|DELETE /chat/{id}` · `GET /test-llm` · `GET /vector-store/stats|samples` · `POST /vector-store/clear` ·
+`GET|DELETE /chat/{id}` · `GET /test-llm` · `GET /test-embeddings` · `GET /vector-store/stats|samples` · `POST /vector-store/clear` ·
 `GET /health` · `GET /session`. Interactive API docs are available at `http://localhost:8000/docs` in local development only (not routed through the proxy).
 
 ## Changes from the original project

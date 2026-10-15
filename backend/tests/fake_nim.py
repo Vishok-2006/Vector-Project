@@ -7,8 +7,8 @@ Used by the tests and for offline smoke tests of the whole container::
 
 Behaviour mirrors the real service where it matters:
 * requires ``Authorization: Bearer <key>`` (401 otherwise)
-* ``nv-embedqa`` models reject requests without ``input_type`` (HTTP 400), like the real NIM
-* embeddings are deterministic hashed bag-of-words vectors, so semantic search is
+* ``nemotron``/``embedqa`` models reject requests without ``input_type`` (HTTP 400), like the real NIM
+* embeddings are deterministic hashed bag-of-words vectors (2048-d, like nemotron-3-embed-1b), so semantic search is
   testable: texts sharing words get a high cosine similarity.
 * chat answers quote the retrieved context so tests can verify RAG grounding.
 """
@@ -24,7 +24,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-EMBED_DIM = 1024
+EMBED_DIM = 2048
 
 
 def embed_text(text: str, dim: int = EMBED_DIM) -> list[float]:
@@ -122,7 +122,15 @@ def _make_handler(state: FakeNimState):
                 with state.lock:
                     state.embedding_requests.append(payload)
                 model = payload.get("model", "")
-                if "embedqa" in model and payload.get("input_type") not in ("query", "passage"):
+                if model == "nvidia/nv-embedqa-e5-v5":
+                    return self._send(
+                        410,
+                        {"detail": f"The model '{model}' has reached its end of life and is no longer available."},
+                    )
+                if ("embedqa" in model or "nemotron" in model) and payload.get("input_type") not in (
+                    "query",
+                    "passage",
+                ):
                     return self._send(
                         400, {"detail": "'input_type' parameter is required for asymmetric models"}
                     )

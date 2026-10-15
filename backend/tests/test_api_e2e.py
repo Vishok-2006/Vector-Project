@@ -19,7 +19,8 @@ def test_health_reports_ready_stack_without_secrets(client):
     assert body["status"] == "ok" and body["app"] == "Vectora"
     assert body["vector_store"]["state"] == "ready" and body["vector_store"]["distance"] == "Cosine"
     assert body["llm"]["model"] == "meta/llama-3.3-70b-instruct"
-    assert body["embeddings"]["dimension"] == 1024
+    assert body["embeddings"]["dimension"] == 2048
+    assert body["embeddings"]["model"] == "nvidia/nemotron-3-embed-1b"
     assert TEST_API_KEY not in client.get("/api/health").text
 
 
@@ -65,7 +66,7 @@ def test_forged_cookie_gets_a_fresh_identity_not_someone_elses(client, second_cl
 def test_upload_index_search_and_answer_roundtrip(client, nim, make_pdf):
     result = upload(client, make_pdf([CRYPTO, COOKING])).json()["results"][0]
     assert result["status"] == "success" and result["chunks"] == 2
-    assert result["chunk_size_applied"] == 250  # clamped to the embedding model's window
+    assert result["chunk_size_applied"] == 500  # UI/default value, within the embedding window
 
     docs = client.get("/api/documents").json()
     assert [(d["filename"], d["status"], d["chunks"]) for d in docs] == [("crypto.pdf", "success", 2)]
@@ -83,7 +84,7 @@ def test_upload_index_search_and_answer_roundtrip(client, nim, make_pdf):
     assert reply["title"] == "Fake Chat Title"
 
     stats = client.get("/api/vector-store/stats").json()
-    assert stats["total_vectors"] == 2 and stats["distance"] == "Cosine" and stats["dimension"] == 1024
+    assert stats["total_vectors"] == 2 and stats["distance"] == "Cosine" and stats["dimension"] == 2048
 
 
 def test_rag_disabled_skips_retrieval_and_returns_no_context(client, nim, make_pdf):
@@ -176,7 +177,7 @@ def test_chunk_size_setting_is_honoured_and_clamped(client, make_pdf):
     r = upload(client, make_pdf([long_text]), chunk_size=50).json()["results"][0]
     assert r["chunk_size_applied"] == 50 and r["chunks"] >= 3
     r = upload(client, make_pdf([long_text]), name="big.pdf", chunk_size=2000).json()["results"][0]
-    assert r["chunk_size_applied"] == 250
+    assert r["chunk_size_applied"] == 1500  # clamped to the embedding model window
     r = upload(client, make_pdf([long_text]), name="tiny.pdf", chunk_size=1).json()["results"][0]
     assert r["chunk_size_applied"] == 50
 
@@ -309,3 +310,19 @@ def test_legacy_database_is_migrated_without_losing_rows(configure, tmp_path):
     assert conn.execute("select count(*) from chats where chat_id='old1'").fetchone()[0] == 1
     assert conn.execute("select count(*) from documents_legacy").fetchone()[0] == 1
     conn.close()
+
+
+def test_test_embeddings_endpoint_ok_and_reports_retired_model(client, nim):
+    body = client.get("/api/test-embeddings").json()
+    assert body["status"] == "ok" and body["returned_dimension"] == 2048
+    assert body["model"] == "nvidia/nemotron-3-embed-1b"
+
+    import os, config
+    os.environ["EMBEDDING_MODEL"] = "nvidia/nv-embedqa-e5-v5"
+    config.get_settings.cache_clear()
+    try:
+        r = client.get("/api/test-embeddings")
+        assert r.status_code == 503 and "has been retired" in r.json()["detail"]
+    finally:
+        del os.environ["EMBEDDING_MODEL"]
+        config.get_settings.cache_clear()

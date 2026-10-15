@@ -25,13 +25,18 @@ APP_VERSION = "2.0.0"
 
 DEFAULT_NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 DEFAULT_NVIDIA_CHAT_MODEL = "meta/llama-3.3-70b-instruct"
-DEFAULT_NVIDIA_EMBEDDING_MODEL = "nvidia/nv-embedqa-e5-v5"
+# nv-embedqa-e5-v5 was retired by NVIDIA (HTTP 410 since 2026-08-25). The hosted catalog changes;
+# check https://build.nvidia.com or `curl -H "Authorization: Bearer $NVIDIA_API_KEY" $NVIDIA_BASE_URL/models`.
+DEFAULT_NVIDIA_EMBEDDING_MODEL = "nvidia/nemotron-3-embed-1b"
 DEFAULT_LOCAL_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 # Native output dimension of each supported embedding model. EMBEDDING_DIMENSION
 # overrides this for models that are not listed here.
 KNOWN_EMBEDDING_DIMENSIONS = {
-    "nvidia/nv-embedqa-e5-v5": 1024,
+    "nvidia/nemotron-3-embed-1b": 2048,
+    "nvidia/llama-nemotron-embed-1b-v2": 2048,
+    "nvidia/llama-nemotron-embed-300m-v2": 2048,
+    "nvidia/nv-embedqa-e5-v5": 1024,  # retired
     "nvidia/nv-embed-v1": 4096,
     "nvidia/llama-3.2-nv-embedqa-1b-v2": 2048,
     "sentence-transformers/all-MiniLM-L6-v2": 384,
@@ -39,8 +44,9 @@ KNOWN_EMBEDDING_DIMENSIONS = {
 }
 
 # Conservative word budgets so the *whole* chunk fits in the embedding model's
-# context window (e5: 512 tokens, MiniLM: 256 word-pieces). 1 word ~ 1.3 tokens.
-DEFAULT_MAX_CHUNK_WORDS = {"nvidia": 250, "local": 150}
+# context window (nemotron-3-embed: 4096 tokens, MiniLM: 256 word-pieces). 1 word ~ 1.3 tokens.
+# If you switch to a short-context model (e.g. a 512-token one), lower EMBEDDING_MAX_CHUNK_WORDS.
+DEFAULT_MAX_CHUNK_WORDS = {"nvidia": 1500, "local": 150}
 
 
 class ConfigError(RuntimeError):
