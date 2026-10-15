@@ -1,17 +1,30 @@
-.agent/*
-.codex/*
-.gemini/*
-.github/*
-.opencode/*
-openspec/*
-.env*
-backend/venu/*
-backend/__pycache__/*
-frontend/node_modules/*
-
-node_modules/
-__pycache__/
+# secrets / local config
 .env
-venv/
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
 .venv/
-endee-data/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node / Next.js
+node_modules/
+frontend/.next/
+frontend/out/
+
+# local data (SQLite, Qdrant storage, session key)
+backend/data/
+qdrant-data/
+*.db
+*.db-wal
+*.db-shm
+
+# build artifacts
+*.tar
+*.tar.gz
+*.log
+.DS_Store

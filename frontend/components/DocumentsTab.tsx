@@ -11,9 +11,10 @@ interface Document {
   created_at: string;
 }
 
-export default function DocumentsTab() {
+export default function DocumentsTab({ chunkSize = 250 }: { chunkSize?: number }) {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
 
   useEffect(() => {
     fetchDocuments();
@@ -21,9 +22,9 @@ export default function DocumentsTab() {
 
   const fetchDocuments = async () => {
     try {
-      const res = await fetch("http://localhost:8000/api/documents");
+      const res = await fetch("/api/documents");
       const data = await res.json();
-      setDocuments(data);
+      setDocuments(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch documents", error);
     }
@@ -31,20 +32,42 @@ export default function DocumentsTab() {
 
   const onDrop = async (acceptedFiles: File[]) => {
     setUploading(true);
+    setUploadErrors([]);
     const formData = new FormData();
     acceptedFiles.forEach((file) => formData.append("files", file));
 
     try {
-      await fetch("http://localhost:8000/api/upload", {
+      const res = await fetch(`/api/upload?chunk_size=${chunkSize}`, {
         method: "POST",
         body: formData,
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUploadErrors([data?.detail ? String(data.detail) : `Upload failed (HTTP ${res.status})`]);
+      } else {
+        setUploadErrors(
+          (data.results ?? [])
+            .filter((r: { status: string }) => r.status !== "success")
+            .map((r: { filename: string; error?: string }) => `${r.filename}: ${r.error ?? "failed"}`)
+        );
+      }
       fetchDocuments();
     } catch (error) {
       console.error("Upload failed", error);
+      setUploadErrors(["Upload failed: could not reach the server."]);
     } finally {
       setUploading(false);
     }
+  };
+
+  const deleteDocument = async (id: number) => {
+    if (!confirm("Remove this document and its indexed content?")) return;
+    try {
+      await fetch(`/api/documents/${id}`, { method: "DELETE" });
+    } catch (error) {
+      console.error("Delete failed", error);
+    }
+    fetchDocuments();
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -69,6 +92,14 @@ export default function DocumentsTab() {
           Drag and drop PDF files here, or click to browse. We'll automatically vectorize and index them.
         </p>
       </div>
+
+      {uploadErrors.length > 0 && (
+        <div className="p-4 bg-rose-500/5 border border-rose-500/20 rounded-xl text-sm text-rose-300 space-y-1">
+          {uploadErrors.map((e, i) => (
+            <p key={i}>{e}</p>
+          ))}
+        </div>
+      )}
 
       <div className="space-y-4">
         <div className="flex items-center justify-between mb-2 px-2">
@@ -96,7 +127,11 @@ export default function DocumentsTab() {
                   </span>
                 </div>
               </div>
-              <button className="opacity-0 group-hover:opacity-100 p-2 text-zinc-600 hover:text-rose-400 transition-all">
+              <button
+                onClick={() => deleteDocument(doc.id)}
+                title="Delete document"
+                className="opacity-0 group-hover:opacity-100 p-2 text-zinc-600 hover:text-rose-400 transition-all"
+              >
                 <Trash2 size={16} />
               </button>
             </div>

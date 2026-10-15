@@ -23,9 +23,9 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
 
   const fetchChats = async () => {
     try {
-      const res = await fetch("http://localhost:8000/chats");
+      const res = await fetch("/api/chats");
       const data = await res.json();
-      setChats(data);
+      setChats(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch chats", error);
     }
@@ -34,7 +34,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const deleteChat = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await fetch(`http://localhost:8000/chat/${id}`, { method: "DELETE" });
+      await fetch(`/api/chat/${id}`, { method: "DELETE" });
       fetchChats();
     } catch (error) {
       console.error("Failed to delete chat", error);
@@ -48,7 +48,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
             <Database className="w-5 h-5 text-white" />
           </div>
-          <span className="font-bold tracking-tight text-xl text-white">Vectra</span>
+          <span className="font-bold tracking-tight text-xl text-white">Vectora</span>
         </div>
 
         <nav className="space-y-1.5 mb-8">
@@ -124,8 +124,8 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
              <h3 className="text-xs font-semibold text-zinc-300">System Ready</h3>
            </div>
            <p className="text-[10px] text-zinc-500 leading-relaxed font-mono">
-             FastAPI + Gemini 1.5 <br />
-             Endee Vector Engine
+             FastAPI + NVIDIA NIM <br />
+             Qdrant Vector Engine
            </p>
         </div>
       </div>

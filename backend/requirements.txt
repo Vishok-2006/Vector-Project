@@ -1,22 +1,16 @@
-fastapi==0.111.0
-uvicorn[standard]==0.29.0
-python-multipart==0.0.9
-pydantic-settings==2.2.1
+# Runtime dependencies (exact versions used for testing).
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
 
 # PDF processing
-pymupdf>=1.27.0
-pdfplumber==0.11.0
+pymupdf==1.28.2
 
-# AI / embeddings
-sentence-transformers==2.7.0
-google-generativeai==0.5.4
-openai>=1.30.0
+# Vector DB client (server is pinned to Qdrant v1.19.2 in the Dockerfile)
+qdrant-client==1.19.1
 
-# HTTP
-httpx>=0.28.1 
-
-# Vector DB
-endee==0.1.25
+# HTTP client for NVIDIA NIM (chat + embeddings)
+httpx==0.28.1
 
 # Env
-python-dotenv==1.0.1
+python-dotenv==1.2.4

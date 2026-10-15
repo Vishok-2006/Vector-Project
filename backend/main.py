@@ -1,66 +1,92 @@
 import logging
 import os
-from pathlib import Path
+import threading
+from contextlib import asynccontextmanager
 
-from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-ENV_PATH = Path(__file__).resolve().with_name(".env")
-load_dotenv(dotenv_path=ENV_PATH)
+import config  # loads .env before anything reads the environment
 
 logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO"),
-    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s [backend:%(name)s] %(message)s",
 )
+logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per Qdrant/NIM call is noise
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logger = logging.getLogger("vectora")
 
-from routes.upload import router as upload_router
+import database
+from qdrant_store import VectorStoreMisconfigured, get_store
 from routes.query import router as query_router
+from routes.system import router as system_router
+from routes.upload import router as upload_router
 from routes.vector_store import router as vector_router
-from services.gemini_service import get_llm_runtime_config, validate_llm_config
+from services import llm_service
+
+
+def _connect_vector_store() -> None:
+    """Wait for Qdrant in the background so the API (and /api/health) are reachable
+    immediately and report progress instead of the process blocking or crashing."""
+    try:
+        get_store().wait_until_ready()
+    except VectorStoreMisconfigured:
+        pass  # already logged as an error; /api/health reports it and no data is touched
+    except Exception as exc:
+        logger.error("Qdrant did not become ready: %s (will keep retrying on demand)", exc)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = config.get_settings()
+    database.init_db()
+    llm = llm_service.get_llm_runtime_config()
+    logger.info(
+        "%s %s starting. chat_model=%s embeddings=%s/%s(%dd) qdrant=%s collection=%s data_dir=%s",
+        config.APP_NAME,
+        config.APP_VERSION,
+        llm["model"],
+        settings.embedding_provider,
+        settings.embedding_model,
+        settings.embedding_dimension,
+        settings.qdrant_url,
+        settings.qdrant_collection,
+        settings.data_dir,
+    )
+    if not llm["configured"]:
+        logger.warning("NVIDIA_API_KEY is not set: chat and uploads will fail until it is configured.")
+
+    threading.Thread(target=_connect_vector_store, name="qdrant-startup", daemon=True).start()
+    yield
+    logger.info("Shutting down.")
+    get_store().close()
+
 
 app = FastAPI(
-    title="Agentic RAG Multi-PDF Assistant",
-    description="Backend API for Agentic RAG Multi-PDF Research Assistant using Endee DB and Gemini.",
-    version="1.0.0",
+    title="Vectora API",
+    description="Backend API for Vectora - a multi-PDF research assistant using NVIDIA NIM and Qdrant.",
+    version=config.APP_VERSION,
+    lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], # Allow all for local dev
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.include_router(upload_router, prefix="/api", tags=["Upload"])
-app.include_router(query_router, prefix="", tags=["Chat"])
-app.include_router(vector_router, prefix="", tags=["Vector Store"])
-
-
-@app.on_event("startup")
-async def validate_runtime_configuration() -> None:
-    config = validate_llm_config()
-    logger = logging.getLogger(__name__)
-    logger.info(
-        "LLM configuration loaded successfully. provider=%s model=%s timeout=%ss",
-        config["provider"],
-        config["model"],
-        config["timeout_seconds"],
+# Same-origin by default (the reverse proxy serves UI and API together). Cross-origin access
+# is opt-in through an explicit allow-list; a wildcard is never combined with credentials.
+_origins = config.get_settings().cors_origins
+if _origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(_origins),
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
-@app.get("/health")
-def health_check():
-    llm_config = get_llm_runtime_config()
-    return {
-        "status": "ok",
-        "message": "Backend is running flawlessly",
-        "llm": {
-            "provider": llm_config["provider"],
-            "model": llm_config["model"],
-        },
-    }
+app.include_router(system_router, prefix="/api", tags=["System"])
+app.include_router(upload_router, prefix="/api", tags=["Upload"])
+app.include_router(query_router, prefix="/api", tags=["Chat"])
+app.include_router(vector_router, prefix="/api", tags=["Vector Store"])
+
 
 @app.get("/")
 def root():
-    return {"status": "Backend running"}
+    return {"status": "Backend running", "app": config.APP_NAME}

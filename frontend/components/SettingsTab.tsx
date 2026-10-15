@@ -8,9 +8,10 @@ interface SettingsTabProps {
     ragEnabled: boolean;
   };
   setSettings: (settings: any) => void;
+  maxChunkWords?: number;
 }
 
-export default function SettingsTab({ settings, setSettings }: SettingsTabProps) {
+export default function SettingsTab({ settings, setSettings, maxChunkWords = 2000 }: SettingsTabProps) {
   return (
     <div className="max-w-3xl mx-auto space-y-8">
       <div className="p-8 bg-zinc-900/30 border border-zinc-800 rounded-2xl space-y-8">
@@ -50,8 +51,8 @@ export default function SettingsTab({ settings, setSettings }: SettingsTabProps)
               </div>
               <input 
                 type="range" 
-                min="100" 
-                max="2000" 
+                min="50" 
+                max={maxChunkWords} 
                 step="50"
                 value={settings.chunkSize}
                 onChange={(e) => setSettings({ ...settings, chunkSize: parseInt(e.target.value) })}
@@ -67,7 +68,7 @@ export default function SettingsTab({ settings, setSettings }: SettingsTabProps)
               <Info size={16} className="text-indigo-400 mt-0.5" />
               <p className="text-xs text-zinc-500 leading-relaxed">
                 Higher chunk sizes allow more context per block but might dilute specificity. 
-                Changes apply only to future uploads.
+                Changes apply only to future uploads. The maximum is set by the context window of the embedding model.
               </p>
             </div>
           </div>
@@ -76,7 +77,7 @@ export default function SettingsTab({ settings, setSettings }: SettingsTabProps)
         <section className="pt-6 border-t border-zinc-800">
            <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-600 uppercase tracking-[0.2em] justify-center">
              <HardDrive size={12} />
-             Backend: v1.0.4-stable
+             Vectora v2.0
            </div>
         </section>
       </div>

@@ -5,7 +5,7 @@ import { Database, Trash2, ShieldAlert, Cpu, Layers, RefreshCw } from "lucide-re
 import { motion } from "framer-motion";
 
 export default function VectorStoreTab() {
-  const [stats, setStats] = useState({ total_vectors: 0 });
+  const [stats, setStats] = useState<{ total_vectors: number; status?: string; collection?: string }>({ total_vectors: 0 });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -15,7 +15,7 @@ export default function VectorStoreTab() {
   const fetchStats = async () => {
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/vector-store/stats");
+      const res = await fetch("/api/vector-store/stats");
       const data = await res.json();
       setStats(data);
     } catch (error) {
@@ -26,11 +26,11 @@ export default function VectorStoreTab() {
   };
 
   const clearDB = async () => {
-    if (!confirm("Are you sure you want to wipe the entire vector database? This cannot be undone.")) return;
+    if (!confirm("Are you sure you want to wipe all of your indexed documents from the vector database? This cannot be undone.")) return;
     
     setLoading(true);
     try {
-      await fetch("http://localhost:8000/vector-store/clear", { method: "POST" });
+      await fetch("/api/vector-store/clear", { method: "POST" });
       fetchStats();
     } catch (error) {
       console.error("Failed to clear DB", error);
@@ -50,12 +50,12 @@ export default function VectorStoreTab() {
         <StatCard 
           icon={<Cpu className="text-pink-500" />} 
           title="Engine Status" 
-          value="Healthy" 
+          value={stats.status === "unavailable" ? "Unavailable" : "Healthy"} 
         />
         <StatCard 
           icon={<Database className="text-emerald-500" />} 
           title="Index Name" 
-          value="pdf_rag_index" 
+          value={stats.collection ?? "vectora_chunks"} 
         />
       </div>
 
@@ -82,7 +82,7 @@ export default function VectorStoreTab() {
               </div>
               <div>
                 <h4 className="text-sm font-bold text-rose-200">Danger Zone: Wipe Index</h4>
-                <p className="text-xs text-rose-500/70">Permanently delete all stored embeddings and metadata in Endee.</p>
+                <p className="text-xs text-rose-500/70">Permanently delete all of your stored embeddings and metadata in Qdrant.</p>
               </div>
             </div>
             <button 

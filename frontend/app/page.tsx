@@ -10,12 +10,48 @@ import { AnimatePresence, motion } from "framer-motion";
 
 export type Tab = "chat" | "documents" | "vector-store" | "settings";
 
+interface Health {
+  status: string;
+  message?: string;
+  embeddings?: { max_chunk_words?: number };
+}
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("chat");
+  const [ready, setReady] = useState(false);
+  const [health, setHealth] = useState<Health | null>(null);
   const [settings, setSettings] = useState({
-    chunkSize: 500,
+    chunkSize: 250,
     ragEnabled: true,
   });
+  const maxChunkWords = health?.embeddings?.max_chunk_words ?? 250;
+
+  // Establish the signed session cookie BEFORE any other request fires, so every
+  // call in this tab belongs to the same user.
+  useEffect(() => {
+    fetch("/api/session")
+      .catch(() => undefined)
+      .finally(() => setReady(true));
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    const load = () =>
+      fetch("/api/health")
+        .then((r) => r.json())
+        .then((h: Health) => setHealth(h))
+        .catch(() => setHealth({ status: "offline", message: "Backend unreachable" }));
+    load();
+    const timer = setInterval(load, 30000);
+    return () => clearInterval(timer);
+  }, [ready]);
+
+  useEffect(() => {
+    setSettings((s) => ({ ...s, chunkSize: Math.min(s.chunkSize, maxChunkWords) }));
+  }, [maxChunkWords]);
+
+  if (!ready) return <div className="h-screen bg-background" />;
+  const online = health?.status === "ok";
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-zinc-200">
@@ -30,9 +66,12 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs text-zinc-400 font-medium tracking-wide font-mono uppercase">
-                Endee Node Active
+              <div className={`w-2 h-2 rounded-full ${health === null ? "bg-zinc-500" : online ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+              <span
+                title={health?.message}
+                className="text-xs text-zinc-400 font-medium tracking-wide font-mono uppercase"
+              >
+                {health === null ? "Connecting..." : online ? "Qdrant Node Active" : "Service Degraded"}
               </span>
             </div>
           </div>
@@ -60,7 +99,7 @@ export default function Home() {
                 exit={{ opacity: 0, y: -10 }}
                 className="h-full p-8"
               >
-                <DocumentsTab />
+                <DocumentsTab chunkSize={settings.chunkSize} />
               </motion.div>
             )}
 
@@ -84,7 +123,7 @@ export default function Home() {
                 exit={{ opacity: 0, y: -10 }}
                 className="h-full p-8"
               >
-                <SettingsTab settings={settings} setSettings={setSettings} />
+                <SettingsTab settings={settings} setSettings={setSettings} maxChunkWords={maxChunkWords} />
               </motion.div>
             )}
           </AnimatePresence>

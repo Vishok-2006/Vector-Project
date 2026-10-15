@@ -1,51 +1,35 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Local DEVELOPMENT launcher (hot reload, no Docker image build).
+# Starts Qdrant in Docker, the FastAPI backend, and the Next.js dev server.
+# For the production single-container image see README.md ("Run with Docker").
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT"
 
-echo "🚀 Starting Vector Project..."
+if [[ ! -f backend/.env && -f .env ]]; then ln -sf "$ROOT/.env" backend/.env; fi
+[[ -n "${NVIDIA_API_KEY:-}" || -f .env ]] || { echo "Set NVIDIA_API_KEY or create .env (see .env.example)"; exit 1; }
 
-PROJECT_ROOT="$HOME/Placement/Projects/Vector-Project"
-
-# -----------------------------
-# 1. Start Endee DB
-# -----------------------------
-echo "📦 Starting Endee DB..."
-if ! docker ps | grep -q 8080; then
-  docker run -d -p 8080:8080 -v /tmp/endee_data:/data --name endee_server endeeio/endee-server:latest
-else
-  echo "Endee DB is already running."
+echo "==> Qdrant (docker, data in ./qdrant-data)"
+if ! docker ps --format '{{.Names}}' | grep -q '^vectora_qdrant$'; then
+  docker rm -f vectora_qdrant >/dev/null 2>&1 || true
+  docker run -d --name vectora_qdrant -p 127.0.0.1:6333:6333 \
+    -v "$ROOT/qdrant-data:/qdrant/storage" qdrant/qdrant:v1.19.2 >/dev/null
 fi
 
-sleep 3
+echo "==> Backend deps"
+[[ -d backend/.venv ]] || python3 -m venv backend/.venv
+backend/.venv/bin/pip install -q -r backend/requirements.txt
 
-# -----------------------------
-# 2. Start Backend (Konsole)
-# -----------------------------
-echo "⚙️ Starting Backend..."
+echo "==> Frontend deps"
+(cd frontend && [[ -d node_modules ]] || npm ci)
 
-konsole --hold -e bash -c "
-cd $PROJECT_ROOT/backend;
-source venv/bin/activate;
-echo '🔥 Backend running at http://localhost:8000';
-PYTHONPATH=. uvicorn main:app --reload --port 8000
-" &
+cleanup() { kill 0 2>/dev/null || true; }
+trap cleanup EXIT INT TERM
 
-sleep 2
+echo "==> Backend  http://localhost:8000   (API docs: /docs)"
+(cd backend && APP_DATA_DIR="$ROOT/backend/data" PYTHONPATH=. .venv/bin/python -m uvicorn main:app --reload --port 8000) &
 
-# -----------------------------
-# 3. Start Frontend (Konsole)
-# -----------------------------
-echo "🌐 Starting Frontend..."
+echo "==> Frontend http://localhost:3000"
+(cd frontend && npm run dev) &
 
-konsole --hold -e bash -c "
-cd $PROJECT_ROOT/frontend;
-echo '🌐 Frontend running at http://localhost:3000';
-npm run dev
-" &
-
-# -----------------------------
-# Done
-# -----------------------------
-echo ""
-echo "✅ Project Started!"
-echo "🌍 Frontend: http://localhost:3000"
-echo "🔧 Backend: http://localhost:8000"
-echo "📦 Endee DB: http://localhost:8080"
+wait

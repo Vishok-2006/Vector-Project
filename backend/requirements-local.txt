@@ -1,0 +1,5 @@
+# OPTIONAL: only for EMBEDDING_PROVIDER=local (in-container sentence-transformers, 384-dim).
+# The default NVIDIA NIM embeddings do NOT need these (saves ~1 GB of image size and RAM).
+# Install the CPU build of torch first:
+#   pip install --index-url https://download.pytorch.org/whl/cpu torch
+sentence-transformers==2.7.0

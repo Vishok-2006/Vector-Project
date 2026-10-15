@@ -1,0 +1,12 @@
+# Qdrant configuration for the single-container image.
+# Qdrant is INTERNAL ONLY: it binds to loopback, so only nginx (on $PORT) is reachable from outside.
+service:
+  host: 127.0.0.1
+  http_port: 6333
+  grpc_port: 6334
+storage:
+  storage_path: /qdrant/storage        # persistent: mount a volume at /qdrant (or /qdrant/storage)
+  snapshots_path: /qdrant/snapshots
+  on_disk_payload: true
+telemetry_disabled: true
+log_level: "INFO,actix_web::middleware::logger=warn"  # keep operational logs, hide per-request noise

@@ -1,0 +1,93 @@
+# Rendered by entrypoint.sh with envsubst (only PORT, MAX_BODY_MB, AUTH_BASIC are substituted).
+# The master runs as root (or as the container user) so it can open the log pipes; workers drop to "app".
+user app;
+worker_processes 1;
+pid /tmp/vectora-run/nginx.pid;
+error_log /dev/stderr warn;
+
+events { worker_connections 1024; }
+
+http {
+  include /etc/nginx/mime.types;
+  default_type application/octet-stream;
+  server_tokens off;
+  sendfile on;
+  keepalive_timeout 65;
+
+  # nginx runs as the unprivileged "app" user: keep every temp dir somewhere writable.
+  client_body_temp_path /tmp/vectora-run/nginx/body;
+  proxy_temp_path       /tmp/vectora-run/nginx/proxy;
+  fastcgi_temp_path     /tmp/vectora-run/nginx/fastcgi;
+  uwsgi_temp_path       /tmp/vectora-run/nginx/uwsgi;
+  scgi_temp_path        /tmp/vectora-run/nginx/scgi;
+
+  log_format vectora '[nginx] $http_x_forwarded_for "$request" $status $body_bytes_sent ${request_time}s';
+  access_log /dev/stdout vectora;
+
+  gzip on;
+  gzip_types text/plain text/css application/json application/javascript image/svg+xml;
+
+  # Honour the scheme Render's edge terminated (https), fall back to ours.
+  map $http_x_forwarded_proto $fwd_proto { default $http_x_forwarded_proto; "" $scheme; }
+
+  upstream api_backend { server 127.0.0.1:8000; keepalive 16; }
+  upstream web_frontend { server 127.0.0.1:3000; keepalive 16; }
+
+  # PDFs are uploaded as multipart; allow a little overhead above the app-level limit.
+  client_max_body_size ${MAX_BODY_MB}m;
+
+  server {
+    listen ${PORT} default_server;
+    server_name _;
+
+    ${AUTH_BASIC}
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    # Render / Docker health check: only 200 when API + Qdrant + config are healthy.
+    location = /healthz {
+      auth_basic off;
+      access_log off;
+      proxy_pass http://api_backend/api/health;
+      proxy_http_version 1.1;
+      proxy_set_header Connection "";
+      proxy_read_timeout 10s;
+      proxy_connect_timeout 3s;
+    }
+
+    # Pure nginx liveness (no dependencies).
+    location = /livez {
+      auth_basic off;
+      access_log off;
+      default_type text/plain;
+      return 200 "ok\n";
+    }
+
+    location /api/ {
+      proxy_pass http://api_backend;
+      proxy_http_version 1.1;
+      proxy_set_header Connection "";
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-Proto $fwd_proto;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header Authorization "";
+      # Uploads + embedding + LLM calls can legitimately take minutes.
+      proxy_connect_timeout 5s;
+      proxy_send_timeout 300s;
+      proxy_read_timeout 300s;
+    }
+
+    location / {
+      proxy_pass http://web_frontend;
+      proxy_http_version 1.1;
+      proxy_set_header Connection "";
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-Proto $fwd_proto;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header Authorization "";
+      proxy_read_timeout 60s;
+    }
+  }
+}

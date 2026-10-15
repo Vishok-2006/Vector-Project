@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Agentic RAG Assistant",
-  description: "Upload PDFs and query them via Gemini and Endee.",
+  title: "Vectora - Chat with your PDFs",
+  description: "Vectora: upload PDFs and get grounded answers, powered by NVIDIA NIM and Qdrant.",
 };
 
 export default function RootLayout({

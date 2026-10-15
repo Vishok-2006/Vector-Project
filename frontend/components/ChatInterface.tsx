@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Send, Bot, User, Sparkles, Loader2, FileText, Info } from "lucide-react";
-import Message from "./Message";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface ChatMessage {
@@ -52,7 +51,8 @@ export default function ChatInterface({ settings }: ChatInterfaceProps) {
   const loadChat = async (id: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/chat/${id}`);
+      const res = await fetch(`/api/chat/${id}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setChatId(data.chat_id);
       setMessages(data.messages);
@@ -72,7 +72,7 @@ export default function ChatInterface({ settings }: ChatInterfaceProps) {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:8000/chat", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -83,6 +83,7 @@ export default function ChatInterface({ settings }: ChatInterfaceProps) {
       });
 
       const data = await res.json();
+      if (!res.ok) throw new Error(data?.detail || `HTTP ${res.status}`);
       setChatId(data.chat_id);
       
       const assistantMsg: ChatMessage = { 
@@ -95,7 +96,7 @@ export default function ChatInterface({ settings }: ChatInterfaceProps) {
       // Notify sidebar to refresh
       window.dispatchEvent(new Event('chat-updated'));
     } catch (error) {
-      setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, I encountered an error." }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: `Sorry, I encountered an error. ${error instanceof Error ? error.message : ""}`.trim() }]);
     } finally {
       setLoading(false);
     }
@@ -156,7 +157,7 @@ export default function ChatInterface({ settings }: ChatInterfaceProps) {
           </button>
         </div>
         <p className="text-center text-[10px] text-zinc-600 mt-4 uppercase tracking-tighter">
-          Powered by Endee Vector DB & Gemini 1.5 Pro
+          Powered by Qdrant Vector DB & NVIDIA NIM
         </p>
       </div>
     </div>
