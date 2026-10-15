@@ -28,3 +28,4 @@ qdrant-data/
 *.tar.gz
 *.log
 .DS_Store
+.next/*
